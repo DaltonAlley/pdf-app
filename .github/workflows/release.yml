@@ -91,10 +91,14 @@ jobs:
             if $result.exit_code != 0 { error make {msg: ($result.stdout + $result.stderr)} }
             $result.stdout | str trim
           }
+          let manifest = docker-checked buildx imagetools inspect $"($env.IMAGE)@($env.IMAGE_DIGEST)" --raw | from json
           for arch in [amd64 arm64] {
+            let platform_images = $manifest.manifests | where {|entry| $entry.platform.os == "linux" and $entry.platform.architecture == $arch }
+            if ($platform_images | length) != 1 { error make {msg: $"Expected one Linux ($arch) image in the published index"} }
+            let platform_digest = $platform_images.0.digest
             let name = $"pdf-app-release-($arch)"
             let result = try {
-              docker-checked run --detach --pull always --name $name --platform $"linux/($arch)" --publish "127.0.0.1::3000" $"($env.IMAGE)@($env.IMAGE_DIGEST)" | ignore
+              docker-checked run --detach --pull always --name $name --platform $"linux/($arch)" --publish "127.0.0.1::3000" $"($env.IMAGE)@($platform_digest)" | ignore
               let binding = docker-checked port $name 3000/tcp
               let url = $"http://($binding)"
               mut ready = false
@@ -112,9 +116,13 @@ jobs:
               for asset in $assets { http get --raw --max-time 30sec $"($url)/($asset)" | ignore }
               null
             } catch {|error| $error }
-            if $result != null { ^docker logs $name }
+            if $result != null {
+              print --stderr $result.msg
+              let logs = ^docker logs $name | complete
+              print --stderr ($logs.stdout + $logs.stderr)
+            }
             let cleanup = ^docker rm --force $name | complete
-            if $result != null { error make $result.raw }
+            if $result != null { error make {msg: $result.msg} }
             if $cleanup.exit_code != 0 { error make {msg: $cleanup.stderr} }
           }
       - name: Create release assets and GitHub release
