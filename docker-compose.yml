@@ -1,0 +1,21 @@
+# Self-host deployment file. Builds the checked-out source locally.
+services:
+  pdf-tools:
+    image: pdf-tools:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      pull: true
+    pull_policy: build
+    ports:
+      - "127.0.0.1:${HOST_PORT:-3000}:3000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: "3000"
+      PDF_TOOLS_BIND_ADDRESS: 0.0.0.0
+      PDF_TOOLS_DATA_DIR: /app/data
+    volumes:
+      - "${PDF_TOOLS_DATA_PATH:-./data}:/app/data"
+    restart: unless-stopped

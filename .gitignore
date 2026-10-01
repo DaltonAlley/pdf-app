@@ -1,0 +1,32 @@
+# Rust build output
+/target/
+
+# Frontend build output
+/frontend/dist/
+/frontend/target/
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs and temporary files
+*.log
+*.tmp
+tmp/
+temp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Local agent/tooling state
+/.agents/
+/.codex/

@@ -1,0 +1,47 @@
+[package]
+name = "pdf-tools-server"
+version = "0.2.11"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.8", default-features = false, features = [
+  "tokio",
+  "http1",
+  "multipart",
+  "json",
+  "matched-path",
+] }
+bytes = "1"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
+getrandom = "0.4"
+http-body-util = "0.1"
+lopdf = { version = "0.44", default-features = false }
+pdfium-render = { version = "=0.9.3", default-features = false, features = [
+  "pdfium_7881",
+  "image_025",
+  "thread_safe",
+] }
+rayon = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = [
+  "macros",
+  "rt-multi-thread",
+  "net",
+  "fs",
+  "io-util",
+  "sync",
+  "time",
+  "signal",
+] }
+tower-http = { version = "0.7", default-features = false, features = ["fs", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+weezl = "0.2"
+zip = { version = "8", default-features = false, features = ["deflate-flate2-zlib-rs", "time"] }
+
+[dev-dependencies]
+http-body = "1"
+serial_test = "4"
+tower = { version = "0.5", features = ["util"] }

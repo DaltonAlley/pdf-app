@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Convert, split, and merge PDFs in your browser." />
+    <title>PDF Tools</title>
+    <script>
+      {
+        let storedTheme;
+        try { storedTheme = localStorage.getItem("pdf-tools-theme"); } catch (_) {}
+        document.documentElement.dataset.theme = storedTheme === "light" || storedTheme === "dark"
+          ? storedTheme
+          : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+    </script>
+    <link id="app-styles" rel="preload" as="style" href="/pkg/pdf-tools-frontend.css" />
+    <style>
+      :root { --bg: #f4f7f8; --text: #1f292d; --text-muted: #637178; color-scheme: light; background: var(--bg); color: var(--text); }
+      :root[data-theme="dark"] { --bg: #111619; --text: #e4ecef; --text-muted: #a7b4b9; color-scheme: dark; }
+      body { margin: 0; background: var(--bg); color: var(--text); }
+      #app-startup, .startup-noscript { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(28rem, calc(100% - 2rem)); display: grid; gap: 1rem; padding: 1rem; text-align: center; color: var(--text-muted); font: 1rem system-ui, sans-serif; }
+      #app-startup p { margin: 0; }
+      #app-startup button { justify-self: center; padding: .75rem 1.5rem; font: inherit; cursor: pointer; }
+      #app-startup[hidden], #app-startup [hidden] { display: none; }
+      @media (prefers-color-scheme: dark) { :root:not([data-theme]) { --bg: #111619; --text: #e4ecef; --text-muted: #a7b4b9; color-scheme: dark; } }
+    </style>
+  </head>
+  <body>
+    <section id="app-startup" aria-label="PDF Tools startup" hidden>
+      <p id="app-startup-status" role="status">Opening PDF Tools…</p>
+      <button id="app-startup-retry" type="button" hidden>Retry</button>
+    </section>
+    <noscript><p class="startup-noscript">Enable JavaScript, then reload this page to use PDF Tools.</p></noscript>
+    <script type="module">
+      const startup = document.getElementById("app-startup");
+      const status = document.getElementById("app-startup-status");
+      const retry = document.getElementById("app-startup-retry");
+      retry.addEventListener("click", () => location.reload());
+      const reveal = setTimeout(() => {
+        startup.hidden = false;
+      }, Math.max(0, 700 - performance.now()));
+      const slowLoad = setTimeout(() => {
+        status.textContent = "Loading is taking longer than expected. You can keep waiting or retry.";
+        retry.hidden = false;
+      }, 15000);
+      try {
+        // Keep slow styles from blocking the startup timer, but do not mount
+        // the interactive app until its stylesheet is ready.
+        await new Promise((resolve, reject) => {
+          const styles = document.getElementById("app-styles");
+          styles.onload = resolve;
+          styles.onerror = () => reject(new Error("PDF Tools stylesheet failed to load"));
+          styles.rel = "stylesheet";
+        });
+        const { default: init } = await import("/pkg/pdf-tools-frontend.js");
+        await init({ module_or_path: "/pkg/pdf-tools-frontend.wasm" });
+        startup.remove();
+      } catch (error) {
+        console.error("PDF Tools failed to start", error);
+        status.textContent = "PDF Tools couldn’t start. Check your connection and try again.";
+        status.setAttribute("role", "alert");
+        retry.hidden = false;
+        startup.hidden = false;
+      } finally {
+        clearTimeout(reveal);
+        clearTimeout(slowLoad);
+      }
+    </script>
+  </body>
+</html>

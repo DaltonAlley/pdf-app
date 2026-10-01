@@ -1,0 +1,73 @@
+[package]
+name = "pdf-tools-frontend"
+version = "0.2.11"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+futures-channel = "0.3"
+gloo-timers = { version = "0.3", features = ["futures"] }
+js-sys = "0.3"
+leptos = { version = "=0.8.20", default-features = false, features = ["csr"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+  "AbortController",
+  "AbortSignal",
+  "Blob",
+  "CssStyleDeclaration",
+  "DataTransfer",
+  "Document",
+  "DomRect",
+  "DomStringMap",
+  "DragEvent",
+  "Element",
+  "Event",
+  "EventTarget",
+  "File",
+  "FileList",
+  "FormData",
+  "HtmlAnchorElement",
+  "HtmlDialogElement",
+  "HtmlElement",
+  "HtmlImageElement",
+  "HtmlInputElement",
+  "KeyboardEvent",
+  "MediaQueryList",
+  "ProgressEvent",
+  "Request",
+  "RequestCache",
+  "RequestInit",
+  "RequestMode",
+  "Response",
+  "ResizeObserver",
+  "Storage",
+  "Url",
+  "Window",
+  "XmlHttpRequest",
+  "XmlHttpRequestEventTarget",
+  "XmlHttpRequestResponseType",
+  "XmlHttpRequestUpload",
+] }
+
+[lints.clippy]
+expect_used = "deny"
+panic = "deny"
+unwrap_used = "deny"
+
+[package.metadata.leptos]
+output-name = "pdf-tools-frontend"
+site-root = "dist"
+site-pkg-dir = "pkg"
+style-file = "styles.css"
+assets-dir = "assets"
+site-addr = "127.0.0.1:3200"
+reload-port = 3001
+hash-files = false

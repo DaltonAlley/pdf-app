@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version matching Cargo.toml (for example 0.2.11)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pdf-app-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      packages: write
+    defaults:
+      run:
+        shell: nix shell github:NixOS/nixpkgs/9fbb54b33e91ee4ca368e35a78e0613c720600b3#nushell -c nu --no-config-file {0}
+    env:
+      IMAGE: ghcr.io/daltonalley/pdf-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - name: Validate release version
+        id: version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          let version = open Cargo.toml | get package.version
+          if $version !~ '^\d+\.\d+\.\d+$' { error make {msg: "Expected a stable semantic version"} }
+          let tag = $"v($version)"
+          if $env.GITHUB_EVENT_NAME == "push" {
+            if $env.GITHUB_REF_NAME != $tag { error make {msg: "Tag must match Cargo.toml version"} }
+          } else {
+            if $env.REQUESTED_VERSION != $version { error make {msg: "Requested version must match Cargo.toml"} }
+          }
+          $"version=($version)\ntag=($tag)\n" | save --append $env.GITHUB_OUTPUT
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish both architectures
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/daltonalley/pdf-app:${{ steps.version.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/DaltonAlley/pdf-app
+            org.opencontainers.image.url=https://github.com/DaltonAlley/pdf-app
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test published images
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          def --wrapped docker-checked [...args: string] {
+            let result = ^docker ...$args | complete
+            if $result.exit_code != 0 { error make {msg: ($result.stdout + $result.stderr)} }
+            $result.stdout | str trim
+          }
+          for arch in [amd64 arm64] {
+            let name = $"pdf-app-release-($arch)"
+            let result = try {
+              docker-checked run --detach --name $name --platform $"linux/($arch)" --publish "127.0.0.1::3000" $"($env.IMAGE)@($env.IMAGE_DIGEST)" | ignore
+              let binding = docker-checked port $name 3000/tcp
+              let url = $"http://($binding)"
+              mut ready = false
+              for _ in 1..60 {
+                if (try { http get --raw --max-time 5sec $"($url)/health" } catch { "" }) == "ok" {
+                  $ready = true
+                  break
+                }
+                sleep 2sec
+              }
+              if not $ready { error make {msg: $"($arch) image did not become healthy"} }
+              let index = http get --raw --max-time 10sec $url
+              let assets = $index | parse --regex '/(?P<name>pkg/[a-f0-9]{64}/pdf-tools-frontend\.[A-Za-z0-9_-]+\.(?:js|wasm|css))' | get name | uniq
+              if ($assets | length) != 3 { error make {msg: "Missing versioned frontend bundle"} }
+              for asset in $assets { http get --raw --max-time 30sec $"($url)/($asset)" | ignore }
+              null
+            } catch {|error| $error }
+            if $result != null { ^docker logs $name }
+            let cleanup = ^docker rm --force $name | complete
+            if $result != null { error make $result.raw }
+            if $cleanup.exit_code != 0 { error make {msg: $cleanup.stderr} }
+          }
+      - name: Create release assets and GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          let assets = $env.RUNNER_TEMP | path join pdf-app-release
+          mkdir $assets
+          let compose = open --raw compose.release.yml
+            | str replace '${PDF_APP_VERSION:-0.2.11}' $env.RELEASE_VERSION
+          $compose | save --force ($assets | path join compose.release.yml)
+          let checksum = open --raw ($assets | path join compose.release.yml) | hash sha256
+          $"($checksum)  compose.release.yml\n" | save --force ($assets | path join SHA256SUMS)
+          let notes = $"Container: `($env.IMAGE):($env.RELEASE_VERSION)`\nDigest: `($env.IMAGE)@($env.IMAGE_DIGEST)`\nPlatforms: linux/amd64, linux/arm64\n\nDownload compose.release.yml and SHA256SUMS, verify with sha256sum --check SHA256SUMS, then run docker compose -f compose.release.yml up -d --wait. The service binds only to 127.0.0.1:3000 and persists data in ./data."
+          ^gh release create $env.RELEASE_TAG ($assets | path join compose.release.yml) ($assets | path join SHA256SUMS) --repo $env.GITHUB_REPOSITORY --target $env.GITHUB_SHA --title $"PDF Tools ($env.RELEASE_TAG)" --notes $notes
+          if $env.LAST_EXIT_CODE != 0 { error make {msg: "GitHub release creation failed"} }

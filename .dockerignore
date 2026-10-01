@@ -1,0 +1,13 @@
+target
+data
+frontend/dist
+frontend/target
+coverage
+.git
+.codex
+.agents
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log
