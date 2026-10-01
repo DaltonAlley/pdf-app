@@ -1,7 +1,7 @@
 # Released image deployment. No source checkout or local build is required.
 services:
   pdf-tools:
-    image: ghcr.io/daltonalley/pdf-tools:${PDF_APP_VERSION:-0.2.11}
+    image: ghcr.io/daltonalley/pdf-tools:${PDF_APP_VERSION:-0.2.12}
     ports:
       - "127.0.0.1:${HOST_PORT:-3000}:3000"
     env_file:

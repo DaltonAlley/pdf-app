@@ -77,7 +77,7 @@ No source checkout is required. Private packages require a registry login;
 an administrator can enable anonymous pulls by setting package visibility to
 Public. The
 release attachment pins that release's immutable image digest. If using the Compose file
-from the repository instead, `PDF_APP_VERSION` defaults to `0.2.11` and can be set
+from the repository instead, `PDF_APP_VERSION` defaults to `0.2.12` and can be set
 in `.env` to select another published version.
 
 To build locally instead, clone <https://github.com/DaltonAlley/pdf-app>, enter

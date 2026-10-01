@@ -860,7 +860,7 @@ dependencies = [
 
 [[package]]
 name = "pdf-tools-server"
-version = "0.2.11"
+version = "0.2.12"
 dependencies = [
  "axum",
  "bytes",

@@ -60,7 +60,7 @@ RUN target="$(if test "$TARGETARCH" = amd64; then printf x86_64-unknown-linux-gn
     && install -D -m 0755 "target/$target/release/pdf-tools-server" /out/pdf-tools-server
 
 FROM --platform=$BUILDPLATFORM docker.io/library/debian@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS pdfium
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 RUN printf '%s\n' \
       'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260801T000000Z bookworm main' \
       > /etc/apt/sources.list \
