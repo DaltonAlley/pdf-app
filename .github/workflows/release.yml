@@ -28,9 +28,11 @@ jobs:
       run:
         shell: nix shell github:NixOS/nixpkgs/9fbb54b33e91ee4ca368e35a78e0613c720600b3#nushell -c nu --no-config-file {0}
     env:
-      IMAGE: ghcr.io/daltonalley/pdf-app
+      IMAGE: ghcr.io/daltonalley/pdf-tools
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref }}
       - uses: cachix/install-nix-action@v31
       - name: Validate release version
         id: version
@@ -45,7 +47,8 @@ jobs:
           } else {
             if $env.REQUESTED_VERSION != $version { error make {msg: "Requested version must match Cargo.toml"} }
           }
-          $"version=($version)\ntag=($tag)\n" | save --append $env.GITHUB_OUTPUT
+          let revision = ^git rev-parse HEAD | str trim
+          $"version=($version)\ntag=($tag)\nrevision=($revision)\n" | save --append $env.GITHUB_OUTPUT
       - name: Refuse an existing release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -71,12 +74,12 @@ jobs:
           file: Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/daltonalley/pdf-app:${{ steps.version.outputs.version }}
+          tags: ghcr.io/daltonalley/pdf-tools:${{ steps.version.outputs.version }}
           labels: |
             org.opencontainers.image.source=https://github.com/DaltonAlley/pdf-app
             org.opencontainers.image.url=https://github.com/DaltonAlley/pdf-app
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ steps.version.outputs.revision }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Smoke test published images
@@ -120,6 +123,7 @@ jobs:
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          RELEASE_REVISION: ${{ steps.version.outputs.revision }}
         run: |
           let assets = $env.RUNNER_TEMP | path join pdf-app-release
           mkdir $assets
@@ -130,5 +134,5 @@ jobs:
           let checksum = open --raw ($assets | path join compose.release.yml) | hash sha256
           $"($checksum)  compose.release.yml\n" | save --force ($assets | path join SHA256SUMS)
           let notes = $"Container: `($env.IMAGE):($env.RELEASE_VERSION)`\nDigest: `($env.IMAGE)@($env.IMAGE_DIGEST)`\nPlatforms: linux/amd64, linux/arm64\n\nDownload compose.release.yml and SHA256SUMS, verify with sha256sum --check SHA256SUMS, then run docker compose -f compose.release.yml up -d --wait. The service binds only to 127.0.0.1:3000 and persists data in ./data."
-          ^gh release create $env.RELEASE_TAG ($assets | path join compose.release.yml) ($assets | path join SHA256SUMS) --repo $env.GITHUB_REPOSITORY --target $env.GITHUB_SHA --title $"PDF Tools ($env.RELEASE_TAG)" --notes $notes
+          ^gh release create $env.RELEASE_TAG ($assets | path join compose.release.yml) ($assets | path join SHA256SUMS) --repo $env.GITHUB_REPOSITORY --target $env.RELEASE_REVISION --title $"PDF Tools ($env.RELEASE_TAG)" --notes $notes
           if $env.LAST_EXIT_CODE != 0 { error make {msg: "GitHub release creation failed"} }

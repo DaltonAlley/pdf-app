@@ -63,7 +63,7 @@ quantity to every page or pair and closes the dialog.
 ## Quick start with Docker Compose
 
 Install Docker with the Compose plugin. Published images for Linux amd64 and
-arm64 are available at [GHCR](https://github.com/DaltonAlley/pdf-app/pkgs/container/pdf-app).
+arm64 are available at [GHCR](https://github.com/DaltonAlley/pdf-app/pkgs/container/pdf-tools).
 Download `compose.release.yml` and `SHA256SUMS` from a
 [GitHub release](https://github.com/DaltonAlley/pdf-app/releases) into an empty
 deployment directory, then run:
@@ -73,7 +73,9 @@ sha256sum --check SHA256SUMS
 docker compose -f compose.release.yml up -d --wait
 ```
 
-No source checkout or registry login is required for the public package. The
+No source checkout is required. Private packages require a registry login;
+an administrator can enable anonymous pulls by setting package visibility to
+Public. The
 release attachment pins that release's immutable image digest. If using the Compose file
 from the repository instead, `PDF_APP_VERSION` defaults to `0.2.11` and can be set
 in `.env` to select another published version.
@@ -158,9 +160,10 @@ health check succeeds. Back up data before upgrades if rollback is important.
 
 The standalone repository runs `.github/workflows/release.yml` on `v*` tags or
 manual dispatch. The tag must equal `v` plus the version in `Cargo.toml`; manual
-dispatch takes the exact version without `v` and releases the selected ref.
+dispatch takes the exact version without `v` and builds its existing version
+tag, so a retry does not change the released source revision.
 Both paths build the existing Dockerfile for Linux amd64 and arm64, publish
-`ghcr.io/daltonalley/pdf-app:<version>` using `GITHUB_TOKEN`, and smoke-test both
+`ghcr.io/daltonalley/pdf-tools:<version>` using `GITHUB_TOKEN`, and smoke-test both
 architectures by immutable image digest. Only after health and versioned frontend
 asset checks pass does the workflow create a GitHub release with a digest-pinned
 Compose file and `SHA256SUMS`. Images can exist even if a later smoke check fails.
