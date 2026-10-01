@@ -46,6 +46,14 @@ jobs:
             if $env.REQUESTED_VERSION != $version { error make {msg: "Requested version must match Cargo.toml"} }
           }
           $"version=($version)\ntag=($tag)\n" | save --append $env.GITHUB_OUTPUT
+      - name: Refuse an existing release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          let result = ^gh api $"repos/($env.GITHUB_REPOSITORY)/releases/tags/($env.RELEASE_TAG)" | complete
+          if $result.exit_code == 0 { error make {msg: "Release already exists. Refusing to overwrite its image tag."} }
+          if not ($result.stderr | str contains "(HTTP 404)") { error make {msg: $result.stderr} }
       - uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
@@ -83,7 +91,7 @@ jobs:
           for arch in [amd64 arm64] {
             let name = $"pdf-app-release-($arch)"
             let result = try {
-              docker-checked run --detach --name $name --platform $"linux/($arch)" --publish "127.0.0.1::3000" $"($env.IMAGE)@($env.IMAGE_DIGEST)" | ignore
+              docker-checked run --detach --pull always --name $name --platform $"linux/($arch)" --publish "127.0.0.1::3000" $"($env.IMAGE)@($env.IMAGE_DIGEST)" | ignore
               let binding = docker-checked port $name 3000/tcp
               let url = $"http://($binding)"
               mut ready = false
@@ -115,8 +123,9 @@ jobs:
         run: |
           let assets = $env.RUNNER_TEMP | path join pdf-app-release
           mkdir $assets
-          let compose = open --raw compose.release.yml
-            | str replace '${PDF_APP_VERSION:-0.2.11}' $env.RELEASE_VERSION
+          let compose = open --raw compose.release.yml | from yaml
+            | update services.pdf-tools.image $"($env.IMAGE)@($env.IMAGE_DIGEST)"
+            | to yaml
           $compose | save --force ($assets | path join compose.release.yml)
           let checksum = open --raw ($assets | path join compose.release.yml) | hash sha256
           $"($checksum)  compose.release.yml\n" | save --force ($assets | path join SHA256SUMS)

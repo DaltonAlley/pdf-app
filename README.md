@@ -62,8 +62,24 @@ quantity to every page or pair and closes the dialog.
 
 ## Quick start with Docker Compose
 
-Install Docker with the Compose plugin, clone this repository, enter the
-`pdf-app` directory, and run:
+Install Docker with the Compose plugin. Published images for Linux amd64 and
+arm64 are available at [GHCR](https://github.com/DaltonAlley/pdf-app/pkgs/container/pdf-app).
+Download `compose.release.yml` and `SHA256SUMS` from a
+[GitHub release](https://github.com/DaltonAlley/pdf-app/releases) into an empty
+deployment directory, then run:
+
+```sh
+sha256sum --check SHA256SUMS
+docker compose -f compose.release.yml up -d --wait
+```
+
+No source checkout or registry login is required for the public package. The
+release attachment pins that release's immutable image digest. If using the Compose file
+from the repository instead, `PDF_APP_VERSION` defaults to `0.2.11` and can be set
+in `.env` to select another published version.
+
+To build locally instead, clone <https://github.com/DaltonAlley/pdf-app>, enter
+its repository root, and run:
 
 ```sh
 docker compose up -d --build --wait
@@ -84,8 +100,8 @@ with the service stopped if that information matters to you.
 ## Optional configuration
 
 The defaults require no configuration. To override them, create `.env` beside
-`docker-compose.yml`. The repository's `.env.example` lists the available
-settings:
+`compose.release.yml` (or `docker-compose.yml` for source builds). The
+repository's `.env.example` lists the available settings:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -121,32 +137,54 @@ in-memory copy of source PDFs.
 
 ## Upgrade or roll back
 
-After updating the checkout, rebuild the image, replace the app, and wait for it
-to become healthy:
+For released images, download the new release's Compose file and checksums,
+verify them, then pull and replace the app:
 
 ```sh
-docker compose up -d --build --wait
+sha256sum --check SHA256SUMS
+docker compose -f compose.release.yml pull
+docker compose -f compose.release.yml up -d --wait
 ```
+
+To roll back, use the previous release's Compose file and repeat the commands.
+For local source builds, update the checkout and run
+`docker compose up -d --build --wait` instead.
 
 The replacement briefly interrupts requests; the `./data:/app/data` mount
 preserves persistent application data. Reload open browser tabs after the
-health check succeeds.
+health check succeeds. Back up data before upgrades if rollback is important.
 
-To roll back, restore the desired repository revision and repeat the command.
-Updating a checkout alone does not change the running container; Compose only
-replaces it after a rebuild.
+## Publishing a release
+
+The standalone repository runs `.github/workflows/release.yml` on `v*` tags or
+manual dispatch. The tag must equal `v` plus the version in `Cargo.toml`; manual
+dispatch takes the exact version without `v` and releases the selected ref.
+Both paths build the existing Dockerfile for Linux amd64 and arm64, publish
+`ghcr.io/daltonalley/pdf-app:<version>` using `GITHUB_TOKEN`, and smoke-test both
+architectures by immutable image digest. Only after health and versioned frontend
+asset checks pass does the workflow create a GitHub release with a digest-pinned
+Compose file and `SHA256SUMS`. Images can exist even if a later smoke check fails.
+An existing release is rejected before building or publishing an image.
+
+Repository administrators must allow Actions to write contents and packages.
+After the first publish, set the linked GHCR package's visibility to **Public**
+in its package settings. New GHCR packages are private by default, even for a
+public repository. The OCI source label links the package to this repository.
 
 ## Build from source
 
-The Compose quick start above builds the current source. For an interactive Rust
-development shell, run this from the repository root:
+The source-build command above runs from the standalone repository root and
+requires only Docker. For the pinned development shell and full checks, run from
+that same repository root:
 
 ```sh
 nix develop .#pdf-app
+nu scripts/check.nu pdf-app
 ```
 
-It uses the same port, optional `.env`, and persistent `./data`. Run the
-production upgrade command to switch back to the published image.
+Both deployments use the same port, optional `.env`, and persistent `./data`.
+Stop the source-built service with `docker compose down` before switching to the
+released-image deployment on the same port.
 
 ## Local development
 
@@ -163,7 +201,7 @@ cargo install just --version 1.58.0 --locked
 
 Ensure Cargo's binary directory is on `PATH` before running the project checks.
 
-Start the complete local application from `pdf-app`:
+Start the complete local application from the repository root:
 
 ```sh
 just dev
@@ -197,7 +235,7 @@ retain prior bundles. If Retry cannot recover an old tab, its loading error offe
 **Reload and clear workspace** and explicitly warns that files and settings must
 be selected again. Reload never deletes the original files on disk.
 
-Run the full project checks from `pdf-app`:
+Run the full project checks from the repository root:
 
 ```sh
 just check
